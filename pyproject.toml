@@ -7,98 +7,38 @@ only-include = ["src"]
 sources = ["src"]
 
 [tool.hatch.build.targets.sdist]
-only-include = ["src", "pyproject.toml", "README.md", "LICENSE.txt", "CHANGELOG.md"]
-
-[tool.hatch.build]
-artifacts = [
-    "*.txt",
-    "*.png",
-    "*.glsl",
-    "*.pdf",
-]
+only-include = ["src", "pyproject.toml", "README.md", "LICENSE.txt"]
 
 [project]
-name = "easymode"
+name = "easymode-reconstruct-only"
 version = "1.0.0"
-description = "Easymode - a collection of pretrained general networks for segmenting common eukaryotic features in cryoET"
+description = "Reconstruction-only wrapper for easymode - wraps WarpTools and AreTomo3"
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "GPL-3.0-or-later" }
 authors = [
-    { name = "Mart So-Last", email = "mgflast@gmail.com" }
+    { name = "Tim Schulte" }
 ]
 keywords = [
     "cryo-electron tomography",
     "cryoET",
-    "deep learning",
-    "segmentation",
-    "neural networks",
-    "structural biology",
-]
-classifiers = [
-    "Development Status :: 3 - Alpha",
-    "Intended Audience :: Science/Research",
-    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
-    "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
-    "Programming Language :: Python :: 3.13",
-    "Topic :: Scientific/Engineering"
+    "reconstruction",
+    "warp",
+    "aretomo",
 ]
 
 dependencies = [
-    "tensorflow>=2.11.0,<2.12",
     "mrcfile",
     "numpy>=1.20,<2",
     "scipy",
-    "huggingface_hub",
-    "requests",
     "tifffile",
     "psutil",
-    "starfile",
     "lxml",
     "tqdm",
-    "scikit-image"
 ]
 
 [project.urls]
-homepage = "https://github.com/mgflast/easymode"
-repository = "https://github.com/mgflast/easymode"
+repository = "https://github.com/timschu/easymode"
 
 [project.scripts]
-easymode = "easymode.main:main"
 easymode_reconstruct_only = "easymode.easymode_reconstruct_only:main"
-
-[dependency-groups]
-test = ["pytest>=7.0", "pytest-cov"]
-dev = [
-    { include-group = "test" },
-    "ipython",
-]
-
-[tool.pytest.ini_options]
-minversion = "7.0"
-addopts = ["--color=yes"]
-testpaths = ["tests"]
-filterwarnings = [
-    "ignore::DeprecationWarning",
-    "ignore::UserWarning",
-]
-
-[tool.coverage.report]
-show_missing = true
-exclude_lines = [
-    "pragma: no cover",
-    "if TYPE_CHECKING:",
-    "@overload",
-    "except ImportError",
-    "raise AssertionError",
-    "\\.\\.\\.",
-    "raise NotImplementedError()",
-    "pass",
-    "if __name__ == .__main__.:",
-]
-
-[tool.coverage.run]
-source = ["easymode"]
