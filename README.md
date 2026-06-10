@@ -4,6 +4,8 @@
 
 This fork adds a lightweight reconstruction entry point that uses the locally loaded Warp and AreTomo3 modules.
 
+See [CLEANUP_GUIDE.md](CLEANUP_GUIDE.md) for instructions on removing unused code and creating a minimal footprint version.
+
 Example:
 
 ```bash
