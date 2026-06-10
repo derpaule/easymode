@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Standalone launcher for the reconstruction-only entry point.
+# Usage: module load aretomo3; module load warp/; ./bin/easymode_reconstruct_only --frames /path/frames --mdocs /path/mdocs
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+export PYTHONPATH="$SCRIPT_DIR/src:$PYTHONPATH"
+
+python3 -m easymode.easymode_reconstruct_only "$@"

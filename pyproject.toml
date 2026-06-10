@@ -68,6 +68,7 @@ repository = "https://github.com/mgflast/easymode"
 
 [project.scripts]
 easymode = "easymode.main:main"
+easymode_reconstruct_only = "easymode.easymode_reconstruct_only:main"
 
 [dependency-groups]
 test = ["pytest>=7.0", "pytest-cov"]

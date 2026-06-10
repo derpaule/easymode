@@ -1,5 +1,17 @@
-import os, time, glob, multiprocessing, subprocess, shutil, json, mrcfile, tifffile
+import os, time, glob, multiprocessing, subprocess, shutil, json
 import easymode.core.config as cfg
+
+
+def _default_warp_tools_cmd(warp_tools_cmd):
+    return warp_tools_cmd if warp_tools_cmd is not None else 'WarpTools'
+
+
+def _default_aretomo3_cmd(aretomo3_cmd):
+    return aretomo3_cmd if aretomo3_cmd is not None else cfg.settings["ARETOMO3_PATH"]
+
+
+def _default_aretomo3_env(aretomo3_env):
+    return aretomo3_env if aretomo3_env is not None else cfg.settings["ARETOMO3_ENV"]
 
 def _run(cmd, capture=False, ignore_error=False):
     print(f'\033[42m{cmd}\033[0m\n')
@@ -11,11 +23,14 @@ def _run(cmd, capture=False, ignore_error=False):
         print(f'\033[93mcontinuing despite error...\033[0m')
     return ret.stdout
 
-def _aretomo3_thread(tomo_list, gpu, force_align=False):
+def _aretomo3_thread(tomo_list, gpu, force_align=False, aretomo3_cmd=None, aretomo3_env=None):
     t_start = time.time()
-    print(f'{cfg.settings["ARETOMO3_ENV"]}')
+    aretomo3_cmd = _default_aretomo3_cmd(aretomo3_cmd)
+    aretomo3_env = _default_aretomo3_env(aretomo3_env)
     n_done = 0
-    subprocess.run(cfg.settings["ARETOMO3_ENV"], shell=True)
+    if aretomo3_env:
+        print(f'{aretomo3_env}')
+        subprocess.run(aretomo3_env, shell=True)
     for j, tomo in enumerate(tomo_list):
         tomo_dir = os.path.join('warp_tiltseries', 'tiltstack', os.path.splitext(os.path.basename(tomo))[0])
         vol_done = (not force_align) and len(glob.glob(os.path.join(tomo_dir, '*_Vol.mrc'))) > 0
@@ -25,7 +40,7 @@ def _aretomo3_thread(tomo_list, gpu, force_align=False):
         lock_path = os.path.join(tomo, '.lock')
         if not os.path.exists(lock_path):
             with open(lock_path, 'w') as f: f.write('')
-            cmd = f'{cfg.settings["ARETOMO3_PATH"]} -InPrefix {tomo_dir}/ -InSuffix .st -OutDir {tomo_dir}/ -CorrCTF 0 -TiltCor 1 -Cmd 1 -Serial 1 -VolZ 0 -AtBin 8 -AlignZ 0 -SplitSum 0 -OutImod 1 -Gpu {gpu}'
+            cmd = f'{aretomo3_cmd} -InPrefix {tomo_dir}/ -InSuffix .st -OutDir {tomo_dir}/ -CorrCTF 0 -TiltCor 1 -Cmd 1 -Serial 1 -VolZ 0 -AtBin 8 -AlignZ 0 -SplitSum 0 -OutImod 1 -Gpu {gpu}'
             try:
                 print(f'GPU {gpu}: Running AreTomo for {tomo}')
                 ret = subprocess.run(cmd, shell=True, check=True, capture_output=True, text=True)
@@ -43,10 +58,12 @@ def _aretomo3_thread(tomo_list, gpu, force_align=False):
 
 
 
-def _aretomo_dispatch(tomo_list, force_align=False):
+def _aretomo_dispatch(tomo_list, force_align=False, aretomo3_cmd=None, aretomo3_env=None):
     t_start = time.time()
     tomo_dir = os.path.join('warp_tiltseries', 'tiltstack', os.path.splitext(os.path.basename(tomo_list[0]))[0])
-    print(f'Base command: \033[42m{cfg.settings["ARETOMO3_PATH"]} -InPrefix {tomo_dir}/ -InSuffix .st -OutDir {tomo_dir}/ -CorrCTF 0 -TiltCor 1 -Cmd 1 -FlipVol 1 -Serial 1 -VolZ 0 -AtBin 8 -AlignZ 0 -SplitSum 0 -OutImod 1\033[0m\n')
+    aretomo3_cmd = _default_aretomo3_cmd(aretomo3_cmd)
+    aretomo3_env = _default_aretomo3_env(aretomo3_env)
+    print(f'Base command: \033[42m{aretomo3_cmd} -InPrefix {tomo_dir}/ -InSuffix .st -OutDir {tomo_dir}/ -CorrCTF 0 -TiltCor 1 -Cmd 1 -FlipVol 1 -Serial 1 -VolZ 0 -AtBin 8 -AlignZ 0 -SplitSum 0 -OutImod 1\033[0m\n')
 
     for t in tomo_list:
         if os.path.exists(os.path.join(t, '.lock')):
@@ -57,7 +74,7 @@ def _aretomo_dispatch(tomo_list, force_align=False):
     gpus = get_gpu_list()
     for gpu in gpus:
         for i in range(PER_DEVICE):
-            p = multiprocessing.Process(target=_aretomo3_thread, args=(tomo_list, gpu, force_align))
+            p = multiprocessing.Process(target=_aretomo3_thread, args=(tomo_list, gpu, force_align, aretomo3_cmd, aretomo3_env))
             print(f'Launching AreTomo3 on GPU ID {gpu} (thread {i}).')
             processes.append(p)
             p.start()
@@ -94,13 +111,19 @@ def find_shape(frames_path, extension):
         print(f'.eer files - shape is 4096x4096')
         return 4096, 4096
     elif extension == '.mrc':
-        import mrcfile
+        try:
+            import mrcfile
+        except Exception:
+            raise
         sample_file = glob.glob(os.path.join(frames_path, f'*{extension}'))[0]
         with mrcfile.open(sample_file, permissive=True) as mrc:
             print(f'.mrc files - shape detected as {mrc.data.shape[-2]}x{mrc.data.shape[-1]}')
             return mrc.data.shape[-2], mrc.data.shape[-1]
     elif extension in ['.tif', '.tiff']:
-        import tifffile
+        try:
+            import tifffile
+        except Exception:
+            raise
         sample_file = glob.glob(os.path.join(frames_path, f'*{extension}'))[0]
         with tifffile.TiffFile(sample_file) as tif:
             print(f'.tif files - shape detected as {tif.pages[0].shape[-2]}x{tif.pages[0].shape[-1]}')
@@ -123,12 +146,15 @@ def get_gpu_list():
         except:
             return []
 
-def reconstruct(frames, mdocs, apix=None, dose=None, extension=None, tomo_apix=10.0, thickness=3000, shape=None, steps='1111111', halfmaps=True, force_align=False):
+def reconstruct(frames, mdocs, apix=None, dose=None, extension=None, tomo_apix=10.0, thickness=3000, shape=None, steps='1111111', halfmaps=True, force_align=False, warp_tools_cmd=None, aretomo3_cmd=None, aretomo3_env=None):
     root = os.getcwd()
     frames_path = frames if os.path.exists(frames) else os.path.join(root, frames)
     mdoc_path = mdocs if os.path.exists(mdocs) else os.path.join(root, mdocs)
     extension = extension if extension is not None else find_extension(frames_path)
     extension = f'.{extension}' if not '.' in extension else extension
+    warp_tools_cmd = _default_warp_tools_cmd(warp_tools_cmd)
+    aretomo3_cmd = _default_aretomo3_cmd(aretomo3_cmd)
+    aretomo3_env = _default_aretomo3_env(aretomo3_env)
 
     print(f'easymode reconstruct settings:'
           f'\nroot: {root}'
@@ -153,31 +179,31 @@ def reconstruct(frames, mdocs, apix=None, dose=None, extension=None, tomo_apix=1
 
 
     print(f'\n\033[96mCreating settings (frame series)\033[0m')
-    _run(f'WarpTools create_settings --folder_data {frames_path} --folder_processing warp_frameseries --output warp_frameseries.settings --extension "*{extension}" --angpix {apix} --exposure {dose}')
+    _run(f'{warp_tools_cmd} create_settings --folder_data {frames_path} --folder_processing warp_frameseries --output warp_frameseries.settings --extension "*{extension}" --angpix {apix} --exposure {dose}')
 
     print(f'\n\033[96mCreating settings (tilt series)\033[0m')
     tomo_size = [int(f) for f in shape.split('x')] if shape is not None else find_shape(frames_path, extension)
-    _run(f'WarpTools create_settings --folder_data tomostar --output warp_tiltseries.settings --folder_processing warp_tiltseries --extension "*.tomostar" --angpix {apix} --exposure {dose} --tomo_dimensions {tomo_size[0]}x{tomo_size[1]}x{int(thickness // apix)}')
+    _run(f'{warp_tools_cmd} create_settings --folder_data tomostar --output warp_tiltseries.settings --folder_processing warp_tiltseries --extension "*.tomostar" --angpix {apix} --exposure {dose} --tomo_dimensions {tomo_size[0]}x{tomo_size[1]}x{int(thickness // apix)}')
 
     steps = [s == '1' for s in steps]
 
     if steps[0]:
         print(f'\n\033[96mMotion correction & CTF estimation\033[0m')
-        _run(f'WarpTools fs_motion_and_ctf --settings warp_frameseries.settings --c_grid 2x2x1 --c_defocus_max 8 --c_use_sum --out_averages {"--out_average_halves" if halfmaps else ""} --perdevice {"2" if extension in ["*.tiff", "*.tif"] else "1"} --c_range_max {2 * apix}')
+        _run(f'{warp_tools_cmd} fs_motion_and_ctf --settings warp_frameseries.settings --c_grid 2x2x1 --c_defocus_max 8 --c_use_sum --out_averages {"--out_average_halves" if halfmaps else ""} --perdevice {"2" if extension in ["*.tiff", "*.tif"] else "1"} --c_range_max {2 * apix}')
 
     if steps[1]:
         print(f'\n\033[96mImporting tiltseries\033[0m')
-        _run(f'WarpTools ts_import --mdocs {mdoc_path} --frameseries warp_frameseries --tilt_exposure {dose} --min_intensity 0.3 --dont_invert --output tomostar --override_axis')
+        _run(f'{warp_tools_cmd} ts_import --mdocs {mdoc_path} --frameseries warp_frameseries --tilt_exposure {dose} --min_intensity 0.3 --dont_invert --output tomostar --override_axis')
 
     if steps[2]:
         print(f'\n\033[96mAssembling .st files\033[0m')
-        _run(f'WarpTools ts_stack --settings warp_tiltseries.settings --perdevice 1')
+        _run(f'{warp_tools_cmd} ts_stack --settings warp_tiltseries.settings --perdevice 1')
 
     # auto AreTomo
     if steps[3]:
         print(f'\n\033[96mAligning with AreTomo (/public/EM/AreTomo/Aretomo)\033[0m')
         tomos = sorted([f for f in glob.glob(os.path.join(root, 'warp_tiltseries', 'tiltstack', '*')) if os.path.isdir(f)])
-        _aretomo_dispatch(tomos, force_align=force_align)
+        _aretomo_dispatch(tomos, force_align=force_align, aretomo3_cmd=aretomo3_cmd, aretomo3_env=aretomo3_env)
 
     if steps[4]:
         print(f'\n\033[96mOrganising alignment files\033[0m')
@@ -188,15 +214,15 @@ def reconstruct(frames, mdocs, apix=None, dose=None, extension=None, tomo_apix=1
         print(f".xf, .aln, etc. are in {os.path.join(root, 'warp_tiltseries', 'alignments')}")
 
         print(f'\n\033[96mParsing alignments in /warp_tiltseries/alignments/\033[0m')
-        _run(f"WarpTools ts_import_alignments --settings warp_tiltseries.settings --alignments warp_tiltseries/alignments --alignment_angpix {apix}")
+        _run(f"{warp_tools_cmd} ts_import_alignments --settings warp_tiltseries.settings --alignments warp_tiltseries/alignments --alignment_angpix {apix}")
 
     if steps[5]:
         print(f'\n\033[96mEstimating tilt series CTF\033[0m')
-        _run(f'WarpTools ts_ctf --settings warp_tiltseries.settings --range_high {max(5.0, 2 * apix)} --defocus_max 8 --perdevice 1')
+        _run(f'{warp_tools_cmd} ts_ctf --settings warp_tiltseries.settings --range_high {max(5.0, 2 * apix)} --defocus_max 8 --perdevice 1')
 
     if steps[6]:
         print(f'\n\033[96mChecking handedness\033[0m')
-        std_out_hand = _run(f'WarpTools ts_defocus_hand --settings warp_tiltseries.settings --check', capture=True, ignore_error=True)
+        std_out_hand = _run(f'{warp_tools_cmd} ts_defocus_hand --settings warp_tiltseries.settings --check', capture=True, ignore_error=True)
         print(std_out_hand)
         correlation = 1.0
         for line in std_out_hand.split('\n'):
@@ -206,11 +232,11 @@ def reconstruct(frames, mdocs, apix=None, dose=None, extension=None, tomo_apix=1
 
         if correlation < 0.0:
             print(f'\033[38;5;208mCorrecting handedness!.\n\033[0m')
-            _run(f'WarpTools ts_defocus_hand --settings warp_tiltseries.settings --set_flip')
+            _run(f'{warp_tools_cmd} ts_defocus_hand --settings warp_tiltseries.settings --set_flip')
 
     if steps[7]:
         print(f'\n\033[96mReconstructing volumes\033[0m')
-        _run(f'WarpTools ts_reconstruct --settings warp_tiltseries.settings --angpix {tomo_apix} --dont_invert {"--halfmap_frames" if halfmaps else ""} --perdevice 1')
+        _run(f'{warp_tools_cmd} ts_reconstruct --settings warp_tiltseries.settings --angpix {tomo_apix} --dont_invert {"--halfmap_frames" if halfmaps else ""} --perdevice 1')
 
         n_mdocs = len(glob.glob(os.path.join(mdoc_path, '*.mdoc')))
         n_tomo_out = len(glob.glob(os.path.join(root, 'warp_tiltseries', 'reconstruction', f'*{10.00:.2f}Apx.mrc')))
