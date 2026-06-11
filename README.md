@@ -2,9 +2,22 @@
 
 ## Reconstruction only
 
-This fork adds a lightweight reconstruction entry point that uses the locally loaded Warp and AreTomo3 modules.
+This fork adds a lightweight reconstruction entry point that uses locally loaded Warp and AreTomo3 modules.
+Had issues to install easymode with loaded Warp and AreTomo3 modules due to conflicting cuda versions.
 
 See [CLEANUP_GUIDE.md](CLEANUP_GUIDE.md) for instructions on removing unused code and creating a minimal footprint version.
+
+Created with Claude.
+
+To install:
+
+```
+conda create -n easymode_reconstruct_only python==3.10 mrcfile tifffile numpy scipy psutil lxml tqdm -y 
+conda activate easymode_reconstruct_only
+conda activate easymode_reconstruct_only
+conda install pip
+pip install git+https://github.com/mgflast/easymode.git
+```
 
 Example:
 
