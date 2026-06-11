@@ -16,7 +16,7 @@ conda create -n easymode_reconstruct_only python==3.10 mrcfile tifffile numpy sc
 conda activate easymode_reconstruct_only
 conda activate easymode_reconstruct_only
 conda install pip
-pip install git+https://github.com/mgflast/easymode.git
+pip install git+https://github.com/derpaule/easymode.git@easymode_reconstruct_only
 ```
 
 Example:
