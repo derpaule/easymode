@@ -14,7 +14,6 @@ To install:
 ```
 conda create -n easymode_reconstruct_only python==3.10 mrcfile tifffile numpy scipy psutil lxml tqdm -y 
 conda activate easymode_reconstruct_only
-conda activate easymode_reconstruct_only
 conda install pip
 pip install git+https://github.com/derpaule/easymode.git@easymode_reconstruct_only
 ```
